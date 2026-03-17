@@ -161,8 +161,113 @@ void memset_wrapper(int64_t *dst, int64_t *src, int size)
     memset(dst, src[0], size);
 }
 
+
+#define ALIAS_LOAD(TYPE, SRC) ({ \
+    TYPE value; \
+    __builtin_memcpy(&value, SRC, sizeof(TYPE)); \
+    SRC += sizeof(TYPE); \
+    value; \
+})
+
+#define ALIAS_STORE(TYPE, DST, VAL) do { \
+    __builtin_memcpy(DST, &VAL, sizeof(TYPE)); \
+    DST += sizeof(TYPE); \
+} while (0)
+
+__attribute__((noinline))
+void *korona_memcpy(void *restrict dest, const void *restrict src, size_t n) {
+    unsigned char *restrict cur_dest = dest;
+    const unsigned char *restrict cur_src = src;
+
+    while (n >= 8 * 8) {
+        uint64_t w1 = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w2 = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w3 = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w4 = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w5 = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w6 = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w7 = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w8 = ALIAS_LOAD(uint64_t, cur_src);
+        ALIAS_STORE(uint64_t, cur_dest, w1);
+        ALIAS_STORE(uint64_t, cur_dest, w2);
+        ALIAS_STORE(uint64_t, cur_dest, w3);
+        ALIAS_STORE(uint64_t, cur_dest, w4);
+        ALIAS_STORE(uint64_t, cur_dest, w5);
+        ALIAS_STORE(uint64_t, cur_dest, w6);
+        ALIAS_STORE(uint64_t, cur_dest, w7);
+        ALIAS_STORE(uint64_t, cur_dest, w8);
+        n -= 8 * 8;
+    }
+    if (n >= 4 * 8) {
+        uint64_t w1 = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w2 = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w3 = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w4 = ALIAS_LOAD(uint64_t, cur_src);
+        ALIAS_STORE(uint64_t, cur_dest, w1);
+        ALIAS_STORE(uint64_t, cur_dest, w2);
+        ALIAS_STORE(uint64_t, cur_dest, w3);
+        ALIAS_STORE(uint64_t, cur_dest, w4);
+        n -= 4 * 8;
+    }
+    if (n >= 2 * 8) {
+        uint64_t w1 = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w2 = ALIAS_LOAD(uint64_t, cur_src);
+        ALIAS_STORE(uint64_t, cur_dest, w1);
+        ALIAS_STORE(uint64_t, cur_dest, w2);
+        n -= 2 * 8;
+    }
+    if (n >= 8) {
+        uint64_t w = ALIAS_LOAD(uint64_t, cur_src);
+        ALIAS_STORE(uint64_t, cur_dest, w);
+        n -= 8;
+    }
+    if (n >= 4) {
+        uint32_t w = ALIAS_LOAD(uint32_t, cur_src);
+        ALIAS_STORE(uint32_t, cur_dest, w);
+        n -= 4;
+    }
+    if (n >= 2) {
+        uint16_t w = ALIAS_LOAD(uint16_t, cur_src);
+        ALIAS_STORE(uint16_t, cur_dest, w);
+        n -= 2;
+    }
+    if (n) {
+        *cur_dest = *cur_src;
+    }
+    return dest;
+}
+
+void korona_memcpy_wrapper(int64_t *restrict dst, int64_t *restrict src, int size) {
+    korona_memcpy(dst, src, size);
+}
+
+__attribute__((noinline))
+void *naive_c_memcpy(void *restrict dest, const void *restrict src, size_t n) {
+    uint8_t *restrict pdest = (uint8_t *restrict)dest;
+    const uint8_t *restrict psrc = (const uint8_t *restrict)src;
+
+    for (size_t i = 0; i < n; i++) {
+        pdest[i] = psrc[i];
+    }
+
+    return dest;
+}
+
+void naive_c_memcpy_wrapper(int64_t *restrict dst, int64_t *restrict src, int size) {
+    naive_c_memcpy(dst, src, size);
+}
+
+
+
 static bench_info c_benchmarks[] =
 {
+    { "korona memcpy()", 0, korona_memcpy_wrapper },
+    { "naive C memcpy()", 0, naive_c_memcpy_wrapper },
+
+    { "korona memcpy() (2-pass)", 1, korona_memcpy_wrapper },
+    { "naive C memcpy() (2-pass)", 1, naive_c_memcpy_wrapper },
+
+/*
     { "C copy backwards", 0, aligned_block_copy_backwards },
     { "C copy backwards (32 byte blocks)", 0, aligned_block_copy_backwards_bs32 },
     { "C copy backwards (64 byte blocks)", 0, aligned_block_copy_backwards_bs64 },
@@ -176,13 +281,15 @@ static bench_info c_benchmarks[] =
     { "C fill (shuffle within 16 byte blocks)", 0, aligned_block_fill_shuffle16 },
     { "C fill (shuffle within 32 byte blocks)", 0, aligned_block_fill_shuffle32 },
     { "C fill (shuffle within 64 byte blocks)", 0, aligned_block_fill_shuffle64 },
+*/
+
     { NULL, 0, NULL }
 };
 
 static bench_info libc_benchmarks[] =
 {
-    { "standard memcpy", 0, memcpy_wrapper },
-    { "standard memset", 0, memset_wrapper },
+    { "libc memcpy", 0, memcpy_wrapper },
+    { "libc memset", 0, memset_wrapper },
     { NULL, 0, NULL }
 };
 
