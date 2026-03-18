@@ -162,32 +162,30 @@ void memset_wrapper(int64_t *dst, int64_t *src, int size)
 }
 
 
-#define ALIAS_LOAD(TYPE, SRC) ({ \
-    TYPE value; \
-    __builtin_memcpy(&value, SRC, sizeof(TYPE)); \
+#define ALIAS_LOAD(TYPE, DST, SRC) do { \
+    __builtin_memcpy(&DST, SRC, sizeof(TYPE)); \
     SRC += sizeof(TYPE); \
-    value; \
-})
+} while (0)
 
-#define ALIAS_STORE(TYPE, DST, VAL) do { \
-    __builtin_memcpy(DST, &VAL, sizeof(TYPE)); \
+#define ALIAS_STORE(TYPE, DST, SRC) do { \
+    __builtin_memcpy(DST, &SRC, sizeof(TYPE)); \
     DST += sizeof(TYPE); \
 } while (0)
 
-__attribute__((noinline))
+__attribute__((noinline, target("general-regs-only")))
 void *korona_memcpy(void *restrict dest, const void *restrict src, size_t n) {
     unsigned char *restrict cur_dest = dest;
     const unsigned char *restrict cur_src = src;
 
     while (n >= 8 * 8) {
-        uint64_t w1 = ALIAS_LOAD(uint64_t, cur_src);
-        uint64_t w2 = ALIAS_LOAD(uint64_t, cur_src);
-        uint64_t w3 = ALIAS_LOAD(uint64_t, cur_src);
-        uint64_t w4 = ALIAS_LOAD(uint64_t, cur_src);
-        uint64_t w5 = ALIAS_LOAD(uint64_t, cur_src);
-        uint64_t w6 = ALIAS_LOAD(uint64_t, cur_src);
-        uint64_t w7 = ALIAS_LOAD(uint64_t, cur_src);
-        uint64_t w8 = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w1; ALIAS_LOAD(uint64_t, w1, cur_src);
+        uint64_t w2; ALIAS_LOAD(uint64_t, w2, cur_src);
+        uint64_t w3; ALIAS_LOAD(uint64_t, w3, cur_src);
+        uint64_t w4; ALIAS_LOAD(uint64_t, w4, cur_src);
+        uint64_t w5; ALIAS_LOAD(uint64_t, w5, cur_src);
+        uint64_t w6; ALIAS_LOAD(uint64_t, w6, cur_src);
+        uint64_t w7; ALIAS_LOAD(uint64_t, w7, cur_src);
+        uint64_t w8; ALIAS_LOAD(uint64_t, w8, cur_src);
         ALIAS_STORE(uint64_t, cur_dest, w1);
         ALIAS_STORE(uint64_t, cur_dest, w2);
         ALIAS_STORE(uint64_t, cur_dest, w3);
@@ -199,10 +197,10 @@ void *korona_memcpy(void *restrict dest, const void *restrict src, size_t n) {
         n -= 8 * 8;
     }
     if (n >= 4 * 8) {
-        uint64_t w1 = ALIAS_LOAD(uint64_t, cur_src);
-        uint64_t w2 = ALIAS_LOAD(uint64_t, cur_src);
-        uint64_t w3 = ALIAS_LOAD(uint64_t, cur_src);
-        uint64_t w4 = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w1; ALIAS_LOAD(uint64_t, w1, cur_src);
+        uint64_t w2; ALIAS_LOAD(uint64_t, w2, cur_src);
+        uint64_t w3; ALIAS_LOAD(uint64_t, w3, cur_src);
+        uint64_t w4; ALIAS_LOAD(uint64_t, w4, cur_src);
         ALIAS_STORE(uint64_t, cur_dest, w1);
         ALIAS_STORE(uint64_t, cur_dest, w2);
         ALIAS_STORE(uint64_t, cur_dest, w3);
@@ -210,24 +208,24 @@ void *korona_memcpy(void *restrict dest, const void *restrict src, size_t n) {
         n -= 4 * 8;
     }
     if (n >= 2 * 8) {
-        uint64_t w1 = ALIAS_LOAD(uint64_t, cur_src);
-        uint64_t w2 = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w1; ALIAS_LOAD(uint64_t, w1, cur_src);
+        uint64_t w2; ALIAS_LOAD(uint64_t, w2, cur_src);
         ALIAS_STORE(uint64_t, cur_dest, w1);
         ALIAS_STORE(uint64_t, cur_dest, w2);
         n -= 2 * 8;
     }
     if (n >= 8) {
-        uint64_t w = ALIAS_LOAD(uint64_t, cur_src);
+        uint64_t w; ALIAS_LOAD(uint64_t, w, cur_src);
         ALIAS_STORE(uint64_t, cur_dest, w);
         n -= 8;
     }
     if (n >= 4) {
-        uint32_t w = ALIAS_LOAD(uint32_t, cur_src);
+        uint32_t w; ALIAS_LOAD(uint32_t, w, cur_src);
         ALIAS_STORE(uint32_t, cur_dest, w);
         n -= 4;
     }
     if (n >= 2) {
-        uint16_t w = ALIAS_LOAD(uint16_t, cur_src);
+        uint16_t w; ALIAS_LOAD(uint16_t, w, cur_src);
         ALIAS_STORE(uint16_t, cur_dest, w);
         n -= 2;
     }
@@ -241,10 +239,10 @@ void korona_memcpy_wrapper(int64_t *restrict dst, int64_t *restrict src, int siz
     korona_memcpy(dst, src, size);
 }
 
-__attribute__((noinline))
+__attribute__((noinline, target("general-regs-only")))
 void *naive_c_memcpy(void *restrict dest, const void *restrict src, size_t n) {
-    uint8_t *restrict pdest = (uint8_t *restrict)dest;
-    const uint8_t *restrict psrc = (const uint8_t *restrict)src;
+    uint8_t *restrict pdest = dest;
+    const uint8_t *restrict psrc = src;
 
     for (size_t i = 0; i < n; i++) {
         pdest[i] = psrc[i];
